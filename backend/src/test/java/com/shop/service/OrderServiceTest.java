@@ -171,9 +171,11 @@ class OrderServiceTest {
         List<Cart> carts = Collections.singletonList(testCart);
         when(cartMapper.findByUserId(1L)).thenReturn(carts);
         when(productMapper.findById(1L)).thenReturn(testProduct);
+        when(productMapper.updateStock(1L, 1)).thenReturn(0);
 
-        assertThrows(RuntimeException.class, () -> 
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> 
             orderService.createFromCart(1L, "测试地址", "张三", "13800138000", "备注"));
+        assertTrue(exception.getMessage().contains("库存不足"));
     }
 
     @Test
@@ -558,5 +560,39 @@ class OrderServiceTest {
         assertNotNull(result);
         verify(productMapper).updateStock(1L, 1);
         verify(orderMapper).insert(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("从购物车创建订单失败 - 多商品中第二个库存扣减失败，事务回滚")
+    void createFromCart_SecondProductStockFailure_RollsBackAll() {
+        Cart cart2 = new Cart();
+        cart2.setId(2L);
+        cart2.setUserId(1L);
+        cart2.setProductId(2L);
+        cart2.setProductName("MacBook Pro");
+        cart2.setPrice(new BigDecimal("12999.00"));
+        cart2.setQuantity(1);
+        cart2.setSelected(true);
+
+        Product product2 = new Product();
+        product2.setId(2L);
+        product2.setName("MacBook Pro");
+        product2.setPrice(new BigDecimal("12999.00"));
+        product2.setStock(0);
+
+        List<Cart> carts = Arrays.asList(testCart, cart2);
+        when(cartMapper.findByUserId(1L)).thenReturn(carts);
+        when(productMapper.findById(1L)).thenReturn(testProduct);
+        when(productMapper.findById(2L)).thenReturn(product2);
+        when(productMapper.updateStock(1L, 1)).thenReturn(1);
+        when(productMapper.updateSales(1L, 1)).thenReturn(1);
+        when(productMapper.updateStock(2L, 1)).thenReturn(0);
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () ->
+            orderService.createFromCart(1L, "测试地址", "张三", "13800138000", "备注"));
+
+        assertTrue(exception.getMessage().contains("MacBook Pro"));
+        assertTrue(exception.getMessage().contains("库存不足"));
+        verify(orderMapper, never()).insert(any(Order.class));
     }
 }

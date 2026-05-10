@@ -78,7 +78,7 @@
               <span>合计</span>
               <span class="total-price">¥{{ cartStore.totalPrice.toFixed(2) }}</span>
             </div>
-            <button class="checkout-btn" :disabled="!cartStore.selectedItems.length" @click="showCheckout = true">
+            <button class="checkout-btn" :disabled="!cartStore.selectedItems.length || showCheckout" @click="showCheckout = true">
               去结算
             </button>
           </div>
@@ -270,20 +270,20 @@ const handleClear = async () => {
 }
 
 const handleCheckout = async () => {
-  await checkoutFormRef.value.validate()
+  if (submitting.value) return
   submitting.value = true
   try {
+    await checkoutFormRef.value.validate()
     const res = await orderApi.create(checkoutForm)
     showCheckout.value = false
-    // Show payment dialog
     paymentAmount.value = cartStore.totalPrice
     currentOrderId.value = res.data?.id
     paymentStep.value = 'select'
     showPayment.value = true
   } catch (error) {
-    // 库存不足时，刷新购物车数据以显示最新库存
-    await cartStore.fetchCart()
-    // 错误消息已在 api 拦截器中显示
+    if (error?.message || error) {
+      await cartStore.fetchCart()
+    }
   } finally {
     submitting.value = false
   }
