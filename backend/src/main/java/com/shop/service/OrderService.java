@@ -70,7 +70,7 @@ public class OrderService {
     /**
      * 创建订单(从购物车)
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Order createFromCart(Long userId, String address, String receiver, String phone, String remark) {
         // 获取选中的购物车项
         List<Cart> cartList = cartMapper.findByUserId(userId);
