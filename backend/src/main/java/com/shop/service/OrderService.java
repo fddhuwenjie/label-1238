@@ -87,9 +87,7 @@ public class OrderService {
             if (product == null) {
                 throw new RuntimeException("商品不存在: " + cart.getProductName());
             }
-            if (product.getStock() < cart.getQuantity()) {
-                throw new RuntimeException("商品库存不足: " + cart.getProductName() + "，当前库存: " + product.getStock());
-            }
+
             BigDecimal subtotal = cart.getPrice().multiply(BigDecimal.valueOf(cart.getQuantity()));
             totalAmount = totalAmount.add(subtotal);
 
@@ -103,18 +101,13 @@ public class OrderService {
             items.add(item);
         }
 
-        // 先扣减库存（带库存校验，防止超卖）
         for (OrderItem item : items) {
             int updatedRows = productMapper.updateStock(item.getProductId(), item.getQuantity());
             if (updatedRows == 0) {
-                // 库存扣减失败，说明并发情况下库存不足
                 Product product = productMapper.findById(item.getProductId());
-                if (product == null) {
-                    throw new RuntimeException("商品不存在: " + item.getProductName());
-                }
-                throw new RuntimeException("商品库存不足: " + item.getProductName() + "，当前库存: " + product.getStock());
+                int currentStock = (product != null) ? product.getStock() : 0;
+                throw new RuntimeException("商品【" + item.getProductName() + "】库存不足，当前剩余库存: " + currentStock + "，购买数量: " + item.getQuantity());
             }
-            // 更新销量
             productMapper.updateSales(item.getProductId(), item.getQuantity());
         }
 
