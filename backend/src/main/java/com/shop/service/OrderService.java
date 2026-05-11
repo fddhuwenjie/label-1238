@@ -70,7 +70,7 @@ public class OrderService {
     /**
      * 创建订单(从购物车)
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Order createFromCart(Long userId, String address, String receiver, String phone, String remark) {
         // 获取选中的购物车项
         List<Cart> cartList = cartMapper.findByUserId(userId);
@@ -87,9 +87,6 @@ public class OrderService {
             if (product == null) {
                 throw new RuntimeException("商品不存在: " + cart.getProductName());
             }
-            if (product.getStock() < cart.getQuantity()) {
-                throw new RuntimeException("商品库存不足: " + cart.getProductName() + "，当前库存: " + product.getStock());
-            }
             BigDecimal subtotal = cart.getPrice().multiply(BigDecimal.valueOf(cart.getQuantity()));
             totalAmount = totalAmount.add(subtotal);
 
@@ -104,15 +101,18 @@ public class OrderService {
         }
 
         // 先扣减库存（带库存校验，防止超卖）
+        // 注意：由于使用了 @Transactional，任何异常都会导致整个事务回滚，
+        // 包括之前已扣减的库存和已更新的销量都会被自动回滚
         for (OrderItem item : items) {
             int updatedRows = productMapper.updateStock(item.getProductId(), item.getQuantity());
             if (updatedRows == 0) {
                 // 库存扣减失败，说明并发情况下库存不足
+                // 重新查询获取最新库存信息
                 Product product = productMapper.findById(item.getProductId());
                 if (product == null) {
                     throw new RuntimeException("商品不存在: " + item.getProductName());
                 }
-                throw new RuntimeException("商品库存不足: " + item.getProductName() + "，当前库存: " + product.getStock());
+                throw new RuntimeException("商品库存不足: " + item.getProductName() + "，当前剩余库存: " + product.getStock() + "，需要购买数量: " + item.getQuantity());
             }
             // 更新销量
             productMapper.updateSales(item.getProductId(), item.getQuantity());
