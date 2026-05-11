@@ -78,8 +78,8 @@
               <span>合计</span>
               <span class="total-price">¥{{ cartStore.totalPrice.toFixed(2) }}</span>
             </div>
-            <button class="checkout-btn" :disabled="!cartStore.selectedItems.length" @click="showCheckout = true">
-              去结算
+            <button class="checkout-btn" :disabled="!cartStore.selectedItems.length || checkingOut" @click="handleShowCheckout">
+              {{ checkingOut ? '处理中...' : '去结算' }}
             </button>
           </div>
         </div>
@@ -181,8 +181,8 @@
       <template #footer>
         <template v-if="paymentStep === 'select'">
           <button class="dialog-btn cancel" @click="cancelPayment">取消支付</button>
-          <button class="dialog-btn confirm" @click="processPayment">
-            确认支付 ¥{{ paymentAmount.toFixed(2) }}
+          <button class="dialog-btn confirm" :disabled="paymentProcessing" @click="processPayment">
+            {{ paymentProcessing ? '处理中...' : '确认支付 ¥' + paymentAmount.toFixed(2) }}
           </button>
         </template>
         <template v-else-if="paymentStep === 'success'">
@@ -204,6 +204,7 @@ const router = useRouter()
 const cartStore = useCartStore()
 
 const showCheckout = ref(false)
+const checkingOut = ref(false)
 const submitting = ref(false)
 const checkoutFormRef = ref()
 
@@ -229,6 +230,7 @@ const paymentStep = ref('select') // select, processing, success
 const selectedPayment = ref('alipay')
 const paymentAmount = ref(0)
 const currentOrderId = ref(null)
+const paymentProcessing = ref(false)
 
 const paymentMethods = [
   { id: 'alipay', name: '支付宝', desc: '推荐使用', color: '#1677FF', icon: '<svg viewBox="0 0 24 24" fill="none" width="24" height="24"><circle cx="12" cy="12" r="10" fill="white"/><text x="12" y="16" text-anchor="middle" font-size="10" font-weight="bold" fill="#1677FF">支</text></svg>' },
@@ -237,6 +239,15 @@ const paymentMethods = [
 ]
 
 const allSelected = computed(() => cartStore.isAllSelected)
+
+const handleShowCheckout = () => {
+  if (checkingOut.value) return
+  checkingOut.value = true
+  setTimeout(() => {
+    checkingOut.value = false
+    showCheckout.value = true
+  }, 300)
+}
 
 const handleSelectAll = (e) => { cartStore.selectAll(e.target.checked) }
 const handleSelect = (row) => { cartStore.updateSelected(row.id, row.selected) }
@@ -290,6 +301,8 @@ const handleCheckout = async () => {
 }
 
 const processPayment = () => {
+  if (paymentProcessing.value) return
+  paymentProcessing.value = true
   paymentStep.value = 'processing'
   // Simulate payment processing
   setTimeout(async () => {
@@ -302,6 +315,7 @@ const processPayment = () => {
       }
     }
     paymentStep.value = 'success'
+    paymentProcessing.value = false
   }, 2000)
 }
 
